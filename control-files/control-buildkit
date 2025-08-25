@@ -1,0 +1,7 @@
+Package: buildkit
+Version: 0.12.2
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Your Name <your.email@example.com>
+Description: buildkit build tool

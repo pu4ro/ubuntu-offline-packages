@@ -1,0 +1,7 @@
+Package: nerdctl
+Version: 1.6.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Your Name <your.email@example.com>
+Description: nerdctl CLI tool
