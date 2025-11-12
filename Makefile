@@ -19,17 +19,17 @@ build-20.04:
 
 fetch-22.04: build-22.04
 	@echo "Fetching archives for Ubuntu 22.04..."
-	UBUNTU_VERSION=22.04.5-lts bash fetch_archives.sh
+	UBUNTU_VERSION=22.04.5-lts bash scripts/fetch_archives.sh
 	@echo "✓ Archives fetched for Ubuntu 22.04"
 
 fetch-24.04: build-24.04
 	@echo "Fetching archives for Ubuntu 24.04..."
-	UBUNTU_VERSION=24.04.3-lts bash fetch_archives.sh
+	UBUNTU_VERSION=24.04.3-lts bash scripts/fetch_archives.sh
 	@echo "✓ Archives fetched for Ubuntu 24.04"
 
 fetch-20.04: build-20.04
 	@echo "Fetching archives for Ubuntu 20.04..."
-	UBUNTU_VERSION=20.04.6-lts bash fetch_archives.sh
+	UBUNTU_VERSION=20.04.6-lts bash scripts/fetch_archives.sh
 	@echo "✓ Archives fetched for Ubuntu 20.04"
 
 clean:

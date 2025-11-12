@@ -32,25 +32,62 @@ docker build --build-arg UBUNTU_VERSION="$UBUNTU_VERSION" \
 # Create archives directory
 mkdir -p archives/${UBUNTU_TAG}
 
-# Extract archives
+# Extract .deb packages directly to the Ubuntu version directory  
 echo "Extracting .deb packages..."
 docker run --rm --platform=linux/${ARCH} --entrypoint "/bin/bash" \
     ubuntu-packages:$UBUNTU_TAG \
     -c 'tar -cz /var/cache/apt/archives/*.deb' | \
-    tar -xz --strip-components 3 -C archives/${UBUNTU_TAG}/
+    tar -xz --strip-components 4 -C archives/${UBUNTU_TAG}/
 
-# Extract package index
+# Extract and decompress package index
 echo "Extracting package index..."
 docker run --rm --platform=linux/${ARCH} --entrypoint "/bin/bash" \
     ubuntu-packages:$UBUNTU_TAG \
-    -c 'cat /opt/Packages.gz' > archives/${UBUNTU_TAG}/Packages.gz
+    -c 'cat /opt/Packages.gz' | gunzip > archives/${UBUNTU_TAG}/Packages
 
-# Extract install script
-echo "Extracting install script..."
-docker run --rm --platform=linux/${ARCH} --entrypoint "/bin/bash" \
-    ubuntu-packages:$UBUNTU_TAG \
-    -c 'cat /opt/apt-get-install-with-version.sh' > archives/${UBUNTU_TAG}/apt-get-install-with-version.sh
+# Create Release file for proper APT repository
+echo "Creating Release file..."
+cat <<EOF > archives/${UBUNTU_TAG}/Release
+Archive: ubuntu-${UBUNTU_TAG}
+Version: ${UBUNTU_TAG}
+Component: main
+Origin: Ubuntu Offline Packages  
+Label: Ubuntu Offline Packages
+Architecture: ${ARCH}
+Date: $(date -Ru)
+Description: Ubuntu ${UBUNTU_TAG} offline packages
+EOF
 
-echo "✓ Archives extracted to archives/${UBUNTU_TAG}/"
-echo "Contents:"
+# Create web server setup instructions
+cat <<EOF > archives/${UBUNTU_TAG}/README.md
+# Ubuntu ${UBUNTU_TAG} Offline Package Repository
+
+## Web Server Setup
+
+1. Copy this entire directory to your web server:
+   \`\`\`bash
+   sudo cp -r ${UBUNTU_TAG}/ /var/www/html/
+   \`\`\`
+
+2. On client machines, add the repository:
+   \`\`\`bash
+   echo "deb [trusted=yes] http://YOUR_SERVER_IP/${UBUNTU_TAG} ./" | sudo tee /etc/apt/sources.list.d/ubuntu-offline-${UBUNTU_TAG}.list
+   sudo apt update
+   \`\`\`
+
+3. Install packages:
+   \`\`\`bash
+   sudo apt install kubelet kubeadm kubectl
+   \`\`\`
+
+## Directory Structure
+- \`*.deb\` - Package files
+- \`Packages\` - Package index
+- \`Release\` - Repository metadata
+EOF
+
+echo "✓ Web-ready package repository created at archives/${UBUNTU_TAG}/"
+echo "✓ Copy archives/${UBUNTU_TAG}/ to /var/www/html/ on your web server"
+echo ""
+echo "Directory contents:"
 ls -la archives/${UBUNTU_TAG}/
