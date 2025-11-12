@@ -48,6 +48,20 @@ COPY packages/ ./packages/
 COPY scripts/install-packages.sh ./
 RUN apt-get update && bash install-packages.sh
 
+# Build and package helm
+ENV HELM_VER=3.16.2
+RUN mkdir -p helm_deb/usr/local/bin && mkdir -p helm_deb/DEBIAN
+COPY control-files/control-helm helm_deb/DEBIAN/control
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -L https://get.helm.sh/helm-v${HELM_VER}-linux-${ARCH}.tar.gz | tar -xz && \
+    cp linux-${ARCH}/helm helm_deb/usr/local/bin/ && \
+    rm -rf linux-${ARCH} && \
+    mv helm_deb helm_${HELM_VER}_linux_${ARCH} && \
+    dpkg-deb --build helm_${HELM_VER}_linux_${ARCH}
+RUN ARCH=$(dpkg --print-architecture) && \
+    apt-get install -y ./helm_${HELM_VER}_linux_${ARCH}.deb && \
+    cp -a ./helm_${HELM_VER}_linux_${ARCH}.deb /var/cache/apt/archives
+
 # Prepare helmfile deb package
 RUN mkdir -p helmfile_deb/usr/bin && mkdir -p helmfile_deb/DEBIAN && mkdir -p helmfile_deb/root
 COPY control-files/control helmfile_deb/DEBIAN/control

@@ -39,11 +39,11 @@ docker run --rm --platform=linux/${ARCH} --entrypoint "/bin/bash" \
     -c 'tar -cz /var/cache/apt/archives/*.deb' | \
     tar -xz --strip-components 4 -C archives/${UBUNTU_TAG}/
 
-# Extract and decompress package index
+# Extract package index (keep compressed)
 echo "Extracting package index..."
 docker run --rm --platform=linux/${ARCH} --entrypoint "/bin/bash" \
     ubuntu-packages:$UBUNTU_TAG \
-    -c 'cat /opt/Packages.gz' | gunzip > archives/${UBUNTU_TAG}/Packages
+    -c 'cat /opt/Packages.gz' > archives/${UBUNTU_TAG}/Packages.gz
 
 # Create Release file for proper APT repository
 echo "Creating Release file..."
@@ -82,7 +82,7 @@ cat <<EOF > archives/${UBUNTU_TAG}/README.md
 
 ## Directory Structure
 - \`*.deb\` - Package files
-- \`Packages\` - Package index
+- \`Packages.gz\` - Compressed package index
 - \`Release\` - Repository metadata
 EOF
 

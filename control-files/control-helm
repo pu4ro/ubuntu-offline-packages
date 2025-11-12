@@ -1,0 +1,5 @@
+Package: helm
+Version: 3.16.2
+Architecture: amd64
+Maintainer: Sangwoo Shim <sangwoo@makinarocks.ai>
+Description: The Kubernetes Package Manager

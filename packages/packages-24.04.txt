@@ -17,7 +17,6 @@ libgl1-mesa-dri
 mesa-utils
 vim-tiny
 zstd
-helm
 dialog
 build-essential
 python3-pip
