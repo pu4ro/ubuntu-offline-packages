@@ -1,21 +1,31 @@
 .PHONY: build-22.04 build-24.04 build-20.04 fetch-22.04 fetch-24.04 fetch-20.04 clean clean-archives help
 
 REGISTRY := ubuntu-packages
-KUBE_VER ?= 1.27
+KUBE_VER ?= 1.34
+KUBE_PATCH_VER ?=
+
+# Build args for kubernetes version
+KUBE_BUILD_ARGS := --build-arg KUBE_VER=$(KUBE_VER)
+ifneq ($(KUBE_PATCH_VER),)
+  KUBE_BUILD_ARGS += --build-arg KUBE_PATCH_VER=$(KUBE_PATCH_VER)
+  KUBE_VERSION_DISPLAY := $(KUBE_PATCH_VER)
+else
+  KUBE_VERSION_DISPLAY := $(KUBE_VER).x (latest)
+endif
 
 build-22.04:
-	@echo "Building Ubuntu 22.04 packages (Kubernetes $(KUBE_VER))..."
-	docker build --build-arg UBUNTU_VERSION=22.04.5-lts --build-arg KUBE_VER=$(KUBE_VER) -t $(REGISTRY):22.04 .
+	@echo "Building Ubuntu 22.04 packages (Kubernetes $(KUBE_VERSION_DISPLAY))..."
+	docker build --build-arg UBUNTU_VERSION=22.04.5-lts $(KUBE_BUILD_ARGS) -t $(REGISTRY):22.04 .
 	@echo "✓ Successfully built $(REGISTRY):22.04"
 
 build-24.04:
-	@echo "Building Ubuntu 24.04 packages (Kubernetes $(KUBE_VER))..."
-	docker build --build-arg UBUNTU_VERSION=24.04.3-lts --build-arg KUBE_VER=$(KUBE_VER) -t $(REGISTRY):24.04 .
+	@echo "Building Ubuntu 24.04 packages (Kubernetes $(KUBE_VERSION_DISPLAY))..."
+	docker build --build-arg UBUNTU_VERSION=24.04.3-lts $(KUBE_BUILD_ARGS) -t $(REGISTRY):24.04 .
 	@echo "✓ Successfully built $(REGISTRY):24.04"
 
 build-20.04:
-	@echo "Building Ubuntu 20.04 packages (Kubernetes $(KUBE_VER))..."
-	docker build --build-arg UBUNTU_VERSION=20.04.6-lts --build-arg KUBE_VER=$(KUBE_VER) -t $(REGISTRY):20.04 .
+	@echo "Building Ubuntu 20.04 packages (Kubernetes $(KUBE_VERSION_DISPLAY))..."
+	docker build --build-arg UBUNTU_VERSION=20.04.6-lts $(KUBE_BUILD_ARGS) -t $(REGISTRY):20.04 .
 	@echo "✓ Successfully built $(REGISTRY):20.04"
 
 fetch-22.04: build-22.04
@@ -56,7 +66,10 @@ help:
 	@echo "  help           - Show this help message"
 	@echo ""
 	@echo "Options:"
-	@echo "  KUBE_VER=x.xx  - Kubernetes version (default: 1.27)"
+	@echo "  KUBE_VER=x.xx        - Kubernetes minor version: 1.32, 1.33, 1.34, 1.35 (default: 1.34)"
+	@echo "  KUBE_PATCH_VER=x.x.x - Specific patch version (optional, e.g., 1.34.3)"
 	@echo ""
-	@echo "Example:"
-	@echo "  make build-24.04 KUBE_VER=1.28"
+	@echo "Examples:"
+	@echo "  make build-24.04                              # Latest 1.34.x"
+	@echo "  make build-24.04 KUBE_VER=1.35                # Latest 1.35.x"
+	@echo "  make build-24.04 KUBE_VER=1.34 KUBE_PATCH_VER=1.34.3  # Specific 1.34.3"

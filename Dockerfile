@@ -1,7 +1,8 @@
 ARG UBUNTU_VERSION=22.04.5-lts
 FROM cr.makina.rocks/external-hub/ubuntu:${UBUNTU_VERSION}
 
-ARG KUBE_VER=1.27
+ARG KUBE_VER=1.34
+ARG KUBE_PATCH_VER=
 ENV HELMFILE_VER=0.169.1
 ENV NERDCTL_VER=1.6.0
 ENV BUILDKIT_VER=0.12.2
@@ -33,8 +34,8 @@ RUN wget https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
     rm go${GO_VERSION}.linux-amd64.tar.gz
 ENV PATH="/usr/local/go/bin:${PATH}"
 
-# Add Kubernetes repository
-RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
+# Add Kubernetes repository (KUBE_VER should be minor version only, e.g., 1.34, 1.35)
+RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v${KUBE_VER}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v${KUBE_VER}/deb/ /" | \
     tee /etc/apt/sources.list.d/kubernetes.list
 
@@ -45,6 +46,16 @@ RUN apt-get install -y software-properties-common && \
 COPY packages/ ./packages/
 COPY scripts/install-packages.sh ./
 RUN apt-get update && bash install-packages.sh
+
+# Install Kubernetes packages (with optional patch version)
+RUN if [ -n "${KUBE_PATCH_VER}" ]; then \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            kubelet=${KUBE_PATCH_VER}-1.1 \
+            kubeadm=${KUBE_PATCH_VER}-1.1 \
+            kubectl=${KUBE_PATCH_VER}-1.1; \
+    else \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y kubelet kubeadm kubectl; \
+    fi
 
 # Build and package helm
 ENV HELM_VER=3.16.2

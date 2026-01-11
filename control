@@ -1,0 +1,6 @@
+Package: helmfile
+Version: 0.169.1
+Architecture: amd64
+Maintainer: Sangwoo Shim <sangwoo@makinarocks.ai>
+Description: Helmfile package
+Depends: git, helm
