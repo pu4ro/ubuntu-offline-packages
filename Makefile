@@ -5,6 +5,8 @@ KUBE_VER ?= 1.34
 KUBE_PATCH_VER ?=
 CONTAINERD_VER ?= 2.2.0
 NO_CACHE ?=
+BUILDX_STORAGE ?=
+BUILDX_NAME ?= ubuntu-pkg-builder
 
 # Docker buildx command
 DOCKER_BUILDX := docker buildx build
@@ -23,12 +25,22 @@ ifeq ($(NO_CACHE),1)
   BUILD_ARGS += --no-cache
 endif
 
+# Buildx driver options
+BUILDX_DRIVER_OPTS :=
+ifneq ($(BUILDX_STORAGE),)
+  BUILDX_DRIVER_OPTS := --driver-opt "image=moby/buildkit:latest,network=host" --driver-opt "volume-mounts=$(BUILDX_STORAGE):/var/lib/buildkit"
+endif
+
 # Setup buildx builder
 setup-buildx:
 	@echo "Setting up Docker Buildx..."
-	@docker buildx create --name ubuntu-pkg-builder --use 2>/dev/null || docker buildx use ubuntu-pkg-builder
+	@docker buildx rm $(BUILDX_NAME) 2>/dev/null || true
+	@docker buildx create --name $(BUILDX_NAME) --driver docker-container $(BUILDX_DRIVER_OPTS) --use
 	@docker buildx inspect --bootstrap
-	@echo "✓ Buildx ready"
+	@echo "✓ Buildx ready (builder: $(BUILDX_NAME))"
+ifneq ($(BUILDX_STORAGE),)
+	@echo "✓ Storage: $(BUILDX_STORAGE)"
+endif
 
 # Build targets (create docker image)
 build-22.04:
@@ -103,9 +115,15 @@ help:
 	@echo "  KUBE_PATCH_VER=x.x.x - Specific K8s patch version"
 	@echo "  CONTAINERD_VER=x.x.x - containerd version (default: 2.2.0)"
 	@echo "  NO_CACHE=1           - Build without cache"
+	@echo "  BUILDX_STORAGE=/path - Custom buildx storage directory"
+	@echo "  BUILDX_NAME=name     - Custom buildx builder name (default: ubuntu-pkg-builder)"
 	@echo ""
 	@echo "Quick Start:"
 	@echo "  make setup-buildx"
+	@echo "  make fetch-24.04"
+	@echo ""
+	@echo "With custom storage:"
+	@echo "  make setup-buildx BUILDX_STORAGE=/mnt/build-storage"
 	@echo "  make fetch-24.04"
 	@echo ""
 	@echo "Examples:"
