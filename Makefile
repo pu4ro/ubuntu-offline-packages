@@ -3,7 +3,7 @@
 REGISTRY := ubuntu-packages
 KUBE_VER ?= 1.34
 KUBE_PATCH_VER ?=
-CONTAINERD_VER ?= 2.0.0
+CONTAINERD_VER ?= 2.2.0
 NO_CACHE ?=
 
 # Build args for versions

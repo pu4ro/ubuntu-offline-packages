@@ -4,12 +4,12 @@ ARG UBUNTU_VERSION=22.04.5-lts
 #######################################
 # Stage 1: Go Builder
 #######################################
-FROM golang:1.23.4 AS go-builder
+FROM golang:1.24 AS go-builder
 
 ENV NERDCTL_VER=2.0.3
 ENV BUILDKIT_VER=0.19.0
 ENV RUNC_VER=1.2.4
-ARG CONTAINERD_VER=2.0.0
+ARG CONTAINERD_VER=2.2.0
 
 WORKDIR /build
 
@@ -50,7 +50,7 @@ FROM cr.makina.rocks/external-hub/ubuntu:${UBUNTU_VERSION} AS package-builder
 
 ARG KUBE_VER=1.34
 ARG KUBE_PATCH_VER=
-ARG CONTAINERD_VER=2.0.0
+ARG CONTAINERD_VER=2.2.0
 ENV HELMFILE_VER=0.169.1
 ENV HELM_VER=3.16.2
 ENV NERDCTL_VER=2.0.3
