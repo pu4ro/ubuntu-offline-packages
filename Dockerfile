@@ -3,10 +3,12 @@ FROM cr.makina.rocks/external-hub/ubuntu:${UBUNTU_VERSION}
 
 ARG KUBE_VER=1.34
 ARG KUBE_PATCH_VER=
+ARG CONTAINERD_VER=2.0.0
 ENV HELMFILE_VER=0.169.1
-ENV NERDCTL_VER=1.6.0
-ENV BUILDKIT_VER=0.12.2
-ENV GO_VERSION=1.20.5
+ENV NERDCTL_VER=2.0.3
+ENV BUILDKIT_VER=0.19.0
+ENV RUNC_VER=1.2.4
+ENV GO_VERSION=1.23.4
 ENV ARCH=amd64
 
 WORKDIR /opt
@@ -131,6 +133,57 @@ RUN ARCH=$(dpkg --print-architecture) && \
     mv buildkit_deb buildkit_${BUILDKIT_VER}_linux_${ARCH} && \
     dpkg-deb --build buildkit_${BUILDKIT_VER}_linux_${ARCH}
 RUN cp buildkit_${BUILDKIT_VER}_linux_${ARCH}.deb /var/cache/apt/archives
+
+# Build and package runc
+WORKDIR /opt
+RUN git clone --branch v${RUNC_VER} https://github.com/opencontainers/runc.git /opt/runc-source
+WORKDIR /opt/runc-source
+RUN mkdir -p runc_deb/usr/local/bin && mkdir -p runc_deb/DEBIAN && \
+    make && \
+    cp runc runc_deb/usr/local/bin/ && \
+    echo "Package: runc" > runc_deb/DEBIAN/control && \
+    echo "Version: ${RUNC_VER}" >> runc_deb/DEBIAN/control && \
+    echo "Architecture: amd64" >> runc_deb/DEBIAN/control && \
+    echo "Maintainer: DevOps <devops@example.com>" >> runc_deb/DEBIAN/control && \
+    echo "Description: CLI tool for spawning and running containers" >> runc_deb/DEBIAN/control && \
+    mv runc_deb runc_${RUNC_VER}_linux_amd64 && \
+    dpkg-deb --build runc_${RUNC_VER}_linux_amd64
+RUN cp runc_${RUNC_VER}_linux_amd64.deb /var/cache/apt/archives
+
+# Build and package containerd
+WORKDIR /opt
+RUN git clone --branch v${CONTAINERD_VER} https://github.com/containerd/containerd.git /opt/containerd-source
+WORKDIR /opt/containerd-source
+RUN mkdir -p containerd_deb/usr/local/bin && mkdir -p containerd_deb/DEBIAN && \
+    make && \
+    cp bin/* containerd_deb/usr/local/bin/
+
+# Add containerd systemd service
+RUN mkdir -p containerd_deb/lib/systemd/system && \
+    curl -L https://raw.githubusercontent.com/containerd/containerd/main/containerd.service -o containerd_deb/lib/systemd/system/containerd.service
+
+# Add containerd config and postinst script
+RUN mkdir -p containerd_deb/etc/containerd && \
+    echo '#!/bin/bash' > containerd_deb/DEBIAN/postinst && \
+    echo 'set -e' >> containerd_deb/DEBIAN/postinst && \
+    echo 'if [ ! -f /etc/containerd/config.toml ]; then' >> containerd_deb/DEBIAN/postinst && \
+    echo '  /usr/local/bin/containerd config default > /etc/containerd/config.toml' >> containerd_deb/DEBIAN/postinst && \
+    echo '  sed -i "s/SystemdCgroup = false/SystemdCgroup = true/" /etc/containerd/config.toml' >> containerd_deb/DEBIAN/postinst && \
+    echo 'fi' >> containerd_deb/DEBIAN/postinst && \
+    echo 'systemctl daemon-reload' >> containerd_deb/DEBIAN/postinst && \
+    echo 'systemctl enable containerd' >> containerd_deb/DEBIAN/postinst && \
+    chmod +x containerd_deb/DEBIAN/postinst
+
+# Create control file for containerd
+RUN echo "Package: containerd" > containerd_deb/DEBIAN/control && \
+    echo "Version: ${CONTAINERD_VER}" >> containerd_deb/DEBIAN/control && \
+    echo "Architecture: amd64" >> containerd_deb/DEBIAN/control && \
+    echo "Depends: runc" >> containerd_deb/DEBIAN/control && \
+    echo "Maintainer: DevOps <devops@example.com>" >> containerd_deb/DEBIAN/control && \
+    echo "Description: An open and reliable container runtime" >> containerd_deb/DEBIAN/control && \
+    mv containerd_deb containerd_${CONTAINERD_VER}_linux_amd64 && \
+    dpkg-deb --build containerd_${CONTAINERD_VER}_linux_amd64
+RUN cp containerd_${CONTAINERD_VER}_linux_amd64.deb /var/cache/apt/archives
 
 # Build and package k9s
 RUN mkdir -p k9s_deb/usr/bin && mkdir -p k9s_deb/DEBIAN

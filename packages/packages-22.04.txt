@@ -6,7 +6,6 @@ jq
 openssh-server
 net-tools
 ca-certificates
-containerd
 chrony
 apache2
 dkms
