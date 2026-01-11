@@ -28,12 +28,19 @@ RUN git clone --depth 1 --branch v${NERDCTL_VER} https://github.com/containerd/n
     git clone --depth 1 --branch v${RUNC_VER} https://github.com/opencontainers/runc.git /build/runc && \
     git clone --depth 1 --branch v${CONTAINERD_VER} https://github.com/containerd/containerd.git /build/containerd
 
-# Build all Go binaries with cache mount and parallel make
+# Build all Go binaries with cache mount
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p /out && \
+    # nerdctl
     cd /build/nerdctl && CGO_ENABLED=1 go build -o /out/nerdctl ./cmd/nerdctl && \
-    cd /build/buildkit && make -j$(nproc) && cp bin/buildkitd bin/buildctl /out/ && \
+    # buildkit (use go build directly, not make which requires docker)
+    cd /build/buildkit && \
+    CGO_ENABLED=0 go build -o /out/buildkitd ./cmd/buildkitd && \
+    CGO_ENABLED=0 go build -o /out/buildctl ./cmd/buildctl && \
+    # runc
     cd /build/runc && make -j$(nproc) && cp runc /out/ && \
+    # containerd
     cd /build/containerd && make -j$(nproc) && cp bin/* /out/
 
 #######################################
