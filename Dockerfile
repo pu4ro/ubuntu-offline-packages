@@ -178,3 +178,11 @@ RUN dpkg-scanpackages . /dev/null | gzip -9c > /opt/Packages.gz
 WORKDIR /var/cache/apt
 COPY scripts/create-apt-get-install-with-version.sh .
 RUN bash create-apt-get-install-with-version.sh > /opt/apt-get-install-with-version.sh
+
+#######################################
+# Stage 3: Export (for buildx --output)
+#######################################
+FROM scratch AS export
+COPY --from=package-builder /var/cache/apt/archives/*.deb /packages/
+COPY --from=package-builder /opt/Packages.gz /packages/
+COPY --from=package-builder /opt/apt-get-install-with-version.sh /packages/
