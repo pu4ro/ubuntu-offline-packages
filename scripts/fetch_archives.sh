@@ -1,93 +1,91 @@
 #!/bin/bash
+set -e
 
 # Default values
 ARCH=${ARCH:-amd64}
 UBUNTU_VERSION=${UBUNTU_VERSION:-22.04.5-lts}
-HELMFILE_VER=${HELMFILE_VER:-0.169.1}
 
 # Extract version tag from Ubuntu version
 UBUNTU_TAG=$(echo "$UBUNTU_VERSION" | cut -d'.' -f1,2)
+IMAGE_NAME="ubuntu-packages:${UBUNTU_TAG}"
+CONTAINER_NAME="ubuntu-packages-extract-$$"
 
-echo "Fetching archives for:"
-echo "  Ubuntu: $UBUNTU_VERSION (tag: $UBUNTU_TAG)"
-echo "  Architecture: $ARCH"
-echo "  Helmfile: $HELMFILE_VER"
+echo "============================================"
+echo "Fetching archives for Ubuntu ${UBUNTU_TAG}"
+echo "  Architecture: ${ARCH}"
+echo "============================================"
 
-# Create control file
-cat <<EOF >control
-Package: helmfile
-Version: ${HELMFILE_VER}
-Architecture: ${ARCH}
-Maintainer: Sangwoo Shim <sangwoo@makinarocks.ai>
-Description: Helmfile package
-Depends: git, helm
-EOF
-
-# Build image with specified Ubuntu version
-echo "Building Docker image for Ubuntu $UBUNTU_VERSION..."
-docker build --build-arg UBUNTU_VERSION="$UBUNTU_VERSION" \
-             -t ubuntu-packages:$UBUNTU_TAG \
-             --platform=linux/${ARCH} .
+# Check if image exists
+if ! docker image inspect "${IMAGE_NAME}" &>/dev/null; then
+    echo "Error: Image ${IMAGE_NAME} not found."
+    echo "Run 'make build-${UBUNTU_TAG}' first."
+    exit 1
+fi
 
 # Create archives directory
-mkdir -p archives/${UBUNTU_TAG}
+ARCHIVE_DIR="archives/${UBUNTU_TAG}"
+rm -rf "${ARCHIVE_DIR}"
+mkdir -p "${ARCHIVE_DIR}"
 
-# Extract .deb packages directly to the Ubuntu version directory  
-echo "Extracting .deb packages..."
-docker run --rm --platform=linux/${ARCH} --entrypoint "/bin/bash" \
-    ubuntu-packages:$UBUNTU_TAG \
-    -c 'tar -cz /var/cache/apt/archives/*.deb' | \
-    tar -xz --strip-components 4 -C archives/${UBUNTU_TAG}/
+# Create temporary container and extract all files at once
+echo "Extracting packages..."
+docker create --name "${CONTAINER_NAME}" --platform=linux/${ARCH} "${IMAGE_NAME}" /bin/true >/dev/null
 
-# Extract package index (keep compressed)
-echo "Extracting package index..."
-docker run --rm --platform=linux/${ARCH} --entrypoint "/bin/bash" \
-    ubuntu-packages:$UBUNTU_TAG \
-    -c 'cat /opt/Packages.gz' > archives/${UBUNTU_TAG}/Packages.gz
+# Copy all deb files and metadata in parallel
+docker cp "${CONTAINER_NAME}:/var/cache/apt/archives/." "${ARCHIVE_DIR}/" &
+PID1=$!
+docker cp "${CONTAINER_NAME}:/opt/Packages.gz" "${ARCHIVE_DIR}/" &
+PID2=$!
+docker cp "${CONTAINER_NAME}:/opt/apt-get-install-with-version.sh" "${ARCHIVE_DIR}/" 2>/dev/null &
+PID3=$!
 
-# Create Release file for proper APT repository
-echo "Creating Release file..."
-cat <<EOF > archives/${UBUNTU_TAG}/Release
+# Wait for all copies to complete
+wait $PID1 $PID2 $PID3 2>/dev/null || true
+
+# Cleanup container
+docker rm "${CONTAINER_NAME}" >/dev/null
+
+# Remove non-deb files from archives (lock, partial dir, etc)
+find "${ARCHIVE_DIR}" -type f ! -name "*.deb" ! -name "*.gz" ! -name "*.sh" ! -name "Release" ! -name "README.md" -delete 2>/dev/null || true
+find "${ARCHIVE_DIR}" -type d -empty -delete 2>/dev/null || true
+
+# Create Release file for APT repository
+cat <<EOF > "${ARCHIVE_DIR}/Release"
 Archive: ubuntu-${UBUNTU_TAG}
 Version: ${UBUNTU_TAG}
 Component: main
-Origin: Ubuntu Offline Packages  
+Origin: Ubuntu Offline Packages
 Label: Ubuntu Offline Packages
 Architecture: ${ARCH}
 Date: $(date -Ru)
 Description: Ubuntu ${UBUNTU_TAG} offline packages
 EOF
 
-# Create web server setup instructions
-cat <<EOF > archives/${UBUNTU_TAG}/README.md
+# Create README
+cat <<EOF > "${ARCHIVE_DIR}/README.md"
 # Ubuntu ${UBUNTU_TAG} Offline Package Repository
 
-## Web Server Setup
+## Quick Setup
 
-1. Copy this entire directory to your web server:
+1. Copy to web server:
    \`\`\`bash
    sudo cp -r ${UBUNTU_TAG}/ /var/www/html/
    \`\`\`
 
-2. On client machines, add the repository:
+2. On client machines:
    \`\`\`bash
-   echo "deb [trusted=yes] http://YOUR_SERVER_IP/${UBUNTU_TAG} ./" | sudo tee /etc/apt/sources.list.d/ubuntu-offline-${UBUNTU_TAG}.list
+   echo "deb [trusted=yes] http://YOUR_SERVER/${UBUNTU_TAG} ./" | sudo tee /etc/apt/sources.list.d/offline.list
    sudo apt update
+   sudo apt install kubelet kubeadm kubectl containerd runc
    \`\`\`
-
-3. Install packages:
-   \`\`\`bash
-   sudo apt install kubelet kubeadm kubectl
-   \`\`\`
-
-## Directory Structure
-- \`*.deb\` - Package files
-- \`Packages.gz\` - Compressed package index
-- \`Release\` - Repository metadata
 EOF
 
-echo "✓ Web-ready package repository created at archives/${UBUNTU_TAG}/"
-echo "✓ Copy archives/${UBUNTU_TAG}/ to /var/www/html/ on your web server"
+# Summary
 echo ""
-echo "Directory contents:"
-ls -la archives/${UBUNTU_TAG}/
+echo "============================================"
+echo "Fetch completed: ${ARCHIVE_DIR}/"
+echo "============================================"
+DEB_COUNT=$(find "${ARCHIVE_DIR}" -name "*.deb" | wc -l)
+TOTAL_SIZE=$(du -sh "${ARCHIVE_DIR}" | cut -f1)
+echo "  Packages: ${DEB_COUNT} deb files"
+echo "  Total size: ${TOTAL_SIZE}"
