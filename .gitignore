@@ -30,4 +30,3 @@ Thumbs.db
 # Build artifacts
 *.deb
 *.tar.gz
-control

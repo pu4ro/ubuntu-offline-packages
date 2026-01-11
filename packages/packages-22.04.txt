@@ -17,8 +17,9 @@ libgl1-mesa-glx
 mesa-utils
 vim-tiny
 zstd
-helm
 dialog
 build-essential
 python3-pip
 snapd
+ansible
+make
