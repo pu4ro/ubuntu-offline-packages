@@ -69,6 +69,7 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
         curl \
         gpg \
         wget \
+        git \
         apt-transport-https \
         software-properties-common \
         dpkg-dev \
